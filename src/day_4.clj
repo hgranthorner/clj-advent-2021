@@ -60,7 +60,15 @@
 (defn get-diagonals
   "When given a set of 25 cells, creates diagonals."
   [board]
-  [(vals (select-keys board [5 9 13 17 21])) (vals (select-keys board [0 6 12 18 14] #_(map (partial * 6) [0 1 2 3 4])))])
+  [(vals (select-keys board [5 9 13 17 21])) (vals (select-keys board [0 6 12 18 14]))])
+
+(defn check-winner
+  "Checks if the board has a winning serie. Otherwise returns empty seq."
+  [board]
+  (let [series (concat (get-rows board) (get-columns board) (get-diagonals board))]
+    (->> series
+         (map (partial map :marked))
+         (filter (partial every? identity)))))
 
 (comment
   (let [data (parse-input (slurp "inputs/day_4_sample.txt"))
@@ -70,6 +78,7 @@
     (def *marked-boards marked-boards))
   
   ; working on determining a winner
+  (map check-winner *marked-boards)
   (let [board (first *marked-boards)
         series (concat (get-rows board) (get-columns board) (get-diagonals board))]
     (->> series
