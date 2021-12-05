@@ -1,0 +1,42 @@
+
+[{:marked true, :value "89"}
+ {:marked false, :value "61"}
+ {:marked false, :value "97"}
+ {:marked true, :value "14"}
+ {:marked false, :value "56"}
+ {:marked true, :value "32"}
+ {:marked false, :value "90"}
+ {:marked false, :value "98"}
+ {:marked false, :value "69"}
+ {:marked true, :value "4"}
+ {:marked false, :value "88"}
+ {:marked false, :value "58"}
+ {:marked false, :value "51"}
+ {:marked true, :value "76"}
+ {:marked true, :value "66"}
+ {:marked false, :value "15"}
+ {:marked false, :value "62"}
+ {:marked true, :value "35"}
+ {:marked false, :value "7"}
+ {:marked false, :value "29"}
+ {:marked true, :value "95"}
+ {:marked true, :value "8"}
+ {:marked true, :value "33"}
+ {:marked false, :value "73"}
+ {:marked true, :value "22"}]
+
+([{:marked true, :value "89"} {:marked false, :value "61"} {:marked false, :value "97"} {:marked true, :value "14"} {:marked false, :value "56"}]
+ [{:marked true, :value "32"} {:marked false, :value "90"} {:marked false, :value "98"} {:marked false, :value "69"} {:marked true, :value "4"}]
+ [{:marked false, :value "88"} {:marked false, :value "58"} {:marked false, :value "51"} {:marked true, :value "76"} {:marked true, :value "66"}]
+ [{:marked false, :value "15"} {:marked false, :value "62"} {:marked true, :value "35"} {:marked false, :value "7"} {:marked false, :value "29"}]
+ [{:marked true, :value "95"} {:marked true, :value "8"} {:marked true, :value "33"} {:marked false, :value "73"} {:marked true, :value "22"}])
+
+(({:marked true, :value "89"} {:marked true, :value "32"} {:marked false, :value "88"} {:marked false, :value "15"} {:marked true, :value "95"})
+ ({:marked false, :value "61"} {:marked false, :value "90"} {:marked false, :value "58"} {:marked false, :value "62"} {:marked true, :value "8"})
+ ({:marked false, :value "97"} {:marked false, :value "98"} {:marked false, :value "51"} {:marked true, :value "35"} {:marked true, :value "33"})
+ ({:marked true, :value "14"} {:marked false, :value "69"} {:marked true, :value "76"} {:marked false, :value "7"} {:marked false, :value "73"})
+ ({:marked false, :value "56"} {:marked true, :value "4"} {:marked true, :value "66"} {:marked false, :value "29"} {:marked true, :value "22"}))
+
+
+[({:marked true, :value "32"} {:marked true, :value "4"} {:marked true, :value "76"} {:marked true, :value "35"} {:marked true, :value "8"})
+ ({:marked true, :value "89"} {:marked false, :value "90"} {:marked false, :value "51"} {:marked false, :value "7"} {:marked true, :value "66"})]
