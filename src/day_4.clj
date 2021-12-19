@@ -1,205 +1,111 @@
 (ns day-4
+  (:refer-clojure :exclude [any?])
   (:require [clojure.string :as str]
-            [clojure.pprint :as pprint]))
+            [clojure.pprint :as pprint :refer [print-table pprint]]
+            [com.rpl.specter :as s]
+            [clojure.tools.trace :as trace]
+            [clojure.test :as test]))
 
-(defn inspect
-  [x]
-  (pprint/pprint x)
-  x)
-
-(def group-boards-xf
-  "A transducer that takes an array of strings and returns a collection of collections:
-   The first is the series of \"moves\" that will occur in the game, 
-   the rest are seqs of strings of various player's boards."
-  (comp
-   (partition-by #(= "" %))
-   (filter #(not= '("") %))))
-
-(defn board-string->maps
-  "Transforms a board string into a map.
-   `=> (board-string->maps \" 8  2 23  4 24\"`)
-   ({:marked false, :value \"8\"} 
-    {:marked false, :value \"2\"} 
-    {:marked false, :value \"23\"} 
-    {:marked false, :value \"4\"} 
-    {:marked false, :value \"24\"})"
-  [board-string]
-  (->> (str/split board-string #"\s")
-       (sequence
-        (comp
-         (filter #(not= "" %))
-         (map #(hash-map :value % :marked false))))))
+(defn mapcatv
+  "Like mapcat, but returns a vector... like mapv"
+  [f coll]
+  (let [results (map f coll)]
+    (reduce into [] results)))
 
 (defn parse-input
-  "When given the puzzle input, returns the following shape:
-   `{:moves [list of moves]
-     :board-strings [list of lists of original board rows as strings]}`
-     :boards [list of lists of maps {:marked boolean, :value string}]"
-  [input]
+  [^String input]
   (->> input
        str/split-lines
-       (into [] group-boards-xf)
-       (#(hash-map :moves (str/split (get-in % [0 0]) #"\,") :board-strings (rest %)))
-       ((fn [{:keys [board-strings] :as m}]
-          (assoc m :boards
-                 (mapv (partial into [] (mapcat board-string->maps)) board-strings))))))
+       (partition-by (partial = ""))
+       (filter (partial not= '("")))
+       (#(hash-map :moves (-> % first first (str/split #",")) :boards (rest %)))
+       ((fn [x]
+          (assoc
+           x :boards
+           (mapv #(mapcatv
+              ; We want to trim the strings, then split on spaces, then group into maps
+                   (comp
+                    (partial into [] (map (fn [y] (hash-map :value y :marked? false))))
+                    (fn [y] (str/split y #"\s+"))
+                    str/trim) %)
+                (:boards x)))))))
 
-(defn mark-board-from-move
-  "When given a move (a string of an integer), marks the board's cells as marked if the value equals the move."
-  [move board]
-  (mapv #(if (= (:value %) move)
-           (assoc % :marked true)
-           %) board))
+(defn get-cols
+  [board]
+  (map (fn [i]
+         (vals
+          (select-keys board
+                       (map #(+ i (* 5 %)) (range 5)))))
+       (range 5)))
 
 (defn get-rows
-  "When given a set of 25 cells, creates rows."
   [board]
-  (map
-   #(subvec board (* (dec %) 5) (* % 5))
-   (range 1 6)))
-
-(defn get-columns
-  "When given a set of 25 cells, creates columns."
-  [board]
-  (map #(vals (select-keys board (map (partial + %) [0 5 10 15 20]))) (range 5)))
+  (map (fn [i]
+         (subvec board (* 5 i) (+ 5 (* 5 i))))
+       (range 5)))
 
 (defn get-diagonals
-  "When given a set of 25 cells, creates diagonals."
   [board]
-  [(vals (select-keys board [5 9 13 17 21])) (vals (select-keys board [0 6 12 18 14]))])
+  [(vals (select-keys board [0 6 12 18 24]))
+   (vals (select-keys board [4 8 12 16 20]))])
 
-(defn check-winner
-  "Checks if the board has a winning serie. Otherwise returns empty seq."
-  [board]
-  (let [series (concat (get-rows board) (get-columns board) (get-diagonals board))]
-    (def *data {:series series :rows (get-rows board) :columns (get-columns board) :diagonals (get-diagonals board)})
-    (->> series
-         (map (partial map :marked))
-         (filter #(every? identity %)))))
+(defn play-move
+  "Returns the new state. Takes the current state and a move."
+  [state move]
+  (->> (update state :moves rest)
+       (s/transform [:boards s/ALL s/ALL]
+                    #(if (= move (:value %))
+                       (assoc % :marked? true)
+                       %))))
 
-(defn first-truthy-index
-  "Returns the index of the first truthy element."
-  [xs]
-  (loop [index 0]
-    (if (< index (count xs))
-      (if (nth xs index)
-        index
-        (recur (inc index)))
-      nil)))
+(defn not-empty?
+  "Checks if coll is empty."
+  [coll]
+  (not= (count coll) =))
+
+(defn any?
+  "Checks if a predicate is true across any members of a collection."
+  [pred coll]
+  (not-empty (filter pred coll)))
+
+(defn all?
+  "Checks if a predicate is true across all members of a collection."
+  [pred coll]
+  (= (count (filter pred coll)) (count coll)))
 
 (defn solution-one
+  "Solves the first puzzle."
   [input]
-  (loop [state (parse-input input)
+  (loop [state (parse-input (slurp input))
          move (first (:moves state))]
-    (let [marked-boards (mapv (partial mark-board-from-move move) (:boards state))
-          checked (map check-winner marked-boards)]
-      (if (first (filter not-empty checked))
-        (do
-          (pprint/pprint move)
-          (pprint/pprint (nth marked-boards (first-truthy-index (map not-empty checked))))
-          (* (Integer/parseInt move)
-             (reduce
-              +
-              (eduction (comp
-                         (filter #(not (:marked %)))
-                         (map :value)
-                         (map #(Integer/parseInt %)))
-                        (nth marked-boards (first-truthy-index (map not-empty checked)))))))
-        (let [new-state (update state :moves rest)]
-          (when (empty? (:moves new-state))
-            (pprint/pprint (:boards new-state))
-            (throw (Exception. "No more moves!")))
-          (recur (assoc new-state :boards marked-boards) (-> new-state :moves first)))))))
+    (if move
+      (let [new-state (play-move state move)
+            cols (map get-cols (:boards new-state))
+            rows (map get-rows (:boards new-state))]
+        (if-let [winner (or (any? #(any? (partial all? :marked?) %) cols)
+                            (any? #(any? (partial all? :marked?) %) rows))]
+          (->> (first winner)
+               (map #(filter (fn [x] (not (:marked? x))) %))
+               flatten
+               (map :value)
+               (map #(Integer/parseInt %))
+               (reduce +)
+               (* (Integer/parseInt move)))
+          (recur new-state (first (new-state :moves)))))
+      (throw (Exception. "Could not find solution!")))))
 
 (comment
-  (solution-one (slurp "inputs/day_4_input.txt"))
-  (first (filter not-empty [[] [1]]))
-  (let [data (parse-input (slurp "inputs/day_4_sample.txt"))
-        boards (:boards data)
-        move (first (:moves data))
-        marked-boards (mapv (partial mark-board-from-move move) boards)]
-    (def *marked-boards marked-boards))
+  (trace/untrace-vars all?)
+  (trace/trace-vars filter)
 
-  (map count (:columns *data))
-  ;; => {:series ([{:marked true, :value "14"} {:marked false, :value "21"} {:marked false, :value "17"} {:marked false, :value "24"} {:marked false, :value "4"}] [{:marked false, :value "10"} {:marked false, :value "16"} {:marked false, :value "15"} {:marked false, :value "9"} {:marked false, :value "19"}] [{:marked false, :value "18"} {:marked false, :value "8"} {:marked false, :value "23"} {:marked false, :value "26"} {:marked false, :value "20"}] [{:marked false, :value "22"} {:marked false, :value "11"} {:marked false, :value "13"} {:marked false, :value "6"} {:marked false, :value "5"}] [{:marked false, :value "2"} {:marked false, :value "0"} {:marked false, :value "12"} {:marked false, :value "3"} {:marked false, :value "7"}] ({:marked true, :value "14"} {:marked false, :value "10"} {:marked false, :value "18"} {:marked false, :value "22"} {:marked false, :value "2"}) ({:marked true, :value "14"} {:marked false, :value "18"} {:marked false, :value "2"}) ({:marked true, :value "14"} {:marked false, :value "22"}) ({:marked true, :value "14"} {:marked false, :value "2"}) ({:marked true, :value "14"}) ({:marked false, :value "10"} {:marked false, :value "19"} {:marked false, :value "26"} {:marked false, :value "13"} {:marked false, :value "0"}) ({:marked true, :value "14"} {:marked false, :value "16"} {:marked false, :value "23"} {:marked false, :value "6"} {:marked false, :value "20"})), :rows ([{:marked true, :value "14"} {:marked false, :value "21"} {:marked false, :value "17"} {:marked false, :value "24"} {:marked false, :value "4"}] [{:marked false, :value "10"} {:marked false, :value "16"} {:marked false, :value "15"} {:marked false, :value "9"} {:marked false, :value "19"}] [{:marked false, :value "18"} {:marked false, :value "8"} {:marked false, :value "23"} {:marked false, :value "26"} {:marked false, :value "20"}] [{:marked false, :value "22"} {:marked false, :value "11"} {:marked false, :value "13"} {:marked false, :value "6"} {:marked false, :value "5"}] [{:marked false, :value "2"} {:marked false, :value "0"} {:marked false, :value "12"} {:marked false, :value "3"} {:marked false, :value "7"}]), :columns (({:marked true, :value "14"} {:marked false, :value "10"} {:marked false, :value "18"} {:marked false, :value "22"} {:marked false, :value "2"}) ({:marked true, :value "14"} {:marked false, :value "18"} {:marked false, :value "2"}) ({:marked true, :value "14"} {:marked false, :value "22"}) ({:marked true, :value "14"} {:marked false, :value "2"}) ({:marked true, :value "14"})), :diagonals [({:marked false, :value "10"} {:marked false, :value "19"} {:marked false, :value "26"} {:marked false, :value "13"} {:marked false, :value "0"}) ({:marked true, :value "14"} {:marked false, :value "16"} {:marked false, :value "23"} {:marked false, :value "6"} {:marked false, :value "20"})]}
+  (let [board [0  1  2  3  4
+               5  6  7  8  9
+               10 11 12 13 14
+               15 16 17 18 19
+               20 21 22 23 24]]
+    (get-rows board)))
 
+(test/deftest first-solution
+  (test/is (= (solution-one "inputs/day_4_input.txt") 50008)))
 
-  (loop [state (parse-input (slurp "inputs/day_4_sample.txt"))
-         move (first (:moves state))]
-    (let [marked-boards (mapv (partial mark-board-from-move move) (:boards state))
-          checked (map check-winner marked-boards)]
-      (if (first (filter not-empty checked))
-        (reduce
-         +
-         (eduction (comp
-                    (filter #(not (:marked %)))
-                    (map :value)
-                    (map #(Integer/parseInt %)))
-                   (nth marked-boards (first-truthy-index (map not-empty checked)))))
-        (let [new-state (update state :moves rest)]
-          (when (empty? (:moves new-state))
-            (pprint/pprint (:boards new-state))
-            (throw (Exception. "No more moves!")))
-          (recur (assoc new-state :boards marked-boards) (-> new-state :moves first))))))
-
-  (map check-winner [[{:marked false, :value "22"} {:marked false, :value "13"} {:marked false, :value "17"} {:marked false, :value "11"} {:marked false, :value "0"} {:marked false, :value "8"} {:marked false, :value "2"} {:marked false, :value "23"} {:marked false, :value "4"} {:marked false, :value "24"} {:marked false, :value "21"} {:marked false, :value "9"} {:marked false, :value "14"} {:marked false, :value "16"} {:marked true, :value "7"} {:marked false, :value "6"} {:marked false, :value "10"} {:marked false, :value "3"} {:marked false, :value "18"} {:marked false, :value "5"} {:marked false, :value "1"} {:marked false, :value "12"} {:marked false, :value "20"} {:marked false, :value "15"} {:marked false, :value "19"}] [{:marked false, :value "3"} {:marked false, :value "15"} {:marked false, :value "0"} {:marked false, :value "2"} {:marked false, :value "22"} {:marked false, :value "9"} {:marked false, :value "18"} {:marked false, :value "13"} {:marked false, :value "17"} {:marked false, :value "5"} {:marked false, :value "19"} {:marked false, :value "8"} {:marked true, :value "7"} {:marked false, :value "25"} {:marked false, :value "23"} {:marked false, :value "20"} {:marked false, :value "11"} {:marked false, :value "10"} {:marked false, :value "24"} {:marked false, :value "4"} {:marked false, :value "14"} {:marked false, :value "21"} {:marked false, :value "16"} {:marked false, :value "12"} {:marked false, :value "6"}] [{:marked false, :value "14"} {:marked false, :value "21"} {:marked false, :value "17"} {:marked false, :value "24"} {:marked false, :value "4"} {:marked false, :value "10"} {:marked false, :value "16"} {:marked false, :value "15"} {:marked false, :value "9"} {:marked false, :value "19"} {:marked false, :value "18"} {:marked false, :value "8"} {:marked false, :value "23"} {:marked false, :value "26"} {:marked false, :value "20"} {:marked false, :value "22"} {:marked false, :value "11"} {:marked false, :value "13"} {:marked false, :value "6"} {:marked false, :value "5"} {:marked false, :value "2"} {:marked false, :value "0"} {:marked false, :value "12"} {:marked false, :value "3"} {:marked true, :value "7"}]])
-
-  (filter not-empty '((nil nil nil nil nil nil nil nil nil nil nil nil) (nil nil nil nil nil nil nil nil nil nil nil nil) (nil nil nil nil nil nil nil nil nil nil nil nil)))
-
-  (map Integer/parseInt ["1"])
-
-  ; working on determining a winner
-  (map check-winner *marked-boards)
-  (let [board (first *marked-boards)
-        series (concat (get-rows board) (get-columns board) (get-diagonals board))]
-    (->> series
-         (map (partial map :marked))
-         (filter (partial every? identity))))
-  )
-;; => {:moves ["7,4,9,5,11,17,23,2,0,14,21,24,10,16,13,6,15,25,12,22,18,20,8,19,3,26,1"], 
-;;     :board-strings (["22 13 17 11  0"
-;;                      " 8  2 23  4 24"
-;;                      "21  9 14 16  7"
-;;                      " 6 10  3 18  5"
-;;                      " 1 12 20 15 19"]
-;;                     [" 3 15  0  2 22"
-;;                      " 9 18 13 17  5"
-;;                      "19  8  7 25 23"
-;;                      "20 11 10 24  4"
-;;                      "14 21 16 12  6"] 
-;;                     ["14 21 17 24  4"
-;;                      "10 16 15  9 19"
-;;                      "18  8 23 26 20"
-;;                      "22 11 13  6  5"
-;;                      " 2  0 12  3  7"])}
-
-(get-diagonals [{:marked true, :value "89"}
-                {:marked false, :value "61"}
-                {:marked false, :value "97"}
-                {:marked true, :value "14"}
-                {:marked false, :value "56"}
-                {:marked true, :value "32"}
-                {:marked false, :value "90"}
-                {:marked false, :value "98"}
-                {:marked false, :value "69"}
-                {:marked true, :value "4"}
-                {:marked false, :value "88"}
-                {:marked false, :value "58"}
-                {:marked false, :value "51"}
-                {:marked true, :value "76"}
-                {:marked true, :value "66"}
-                {:marked false, :value "15"}
-                {:marked false, :value "62"}
-                {:marked true, :value "35"}
-                {:marked false, :value "7"}
-                {:marked false, :value "29"}
-                {:marked true, :value "95"}
-                {:marked true, :value "8"}
-                {:marked true, :value "33"}
-                {:marked false, :value "73"}
-                {:marked true, :value "22"}])
-;; => [({:marked true, :value "32"} {:marked true, :value "4"} {:marked true, :value "76"} {:marked true, :value "35"} {:marked true, :value "8"}) ({:marked true, :value "89"} {:marked false, :value "90"} {:marked false, :value "51"} {:marked false, :value "7"} {:marked true, :value "66"})]
-
-;; => (({:marked true, :value "89"} {:marked true, :value "32"} {:marked false, :value "88"} {:marked false, :value "15"} {:marked true, :value "95"}) ({:marked false, :value "61"} {:marked false, :value "90"} {:marked false, :value "58"} {:marked false, :value "62"} {:marked true, :value "8"}) ({:marked false, :value "97"} {:marked false, :value "98"} {:marked false, :value "51"} {:marked true, :value "35"} {:marked true, :value "33"}) ({:marked true, :value "14"} {:marked false, :value "69"} {:marked true, :value "76"} {:marked false, :value "7"} {:marked false, :value "73"}) ({:marked false, :value "56"} {:marked true, :value "4"} {:marked true, :value "66"} {:marked false, :value "29"} {:marked true, :value "22"}))
-
-;; => ([{:marked true, :value "89"} {:marked false, :value "61"} {:marked false, :value "97"} {:marked true, :value "14"} {:marked false, :value "56"}] [{:marked true, :value "32"} {:marked false, :value "90"} {:marked false, :value "98"} {:marked false, :value "69"} {:marked true, :value "4"}] [{:marked false, :value "88"} {:marked false, :value "58"} {:marked false, :value "51"} {:marked true, :value "76"} {:marked true, :value "66"}] [{:marked false, :value "15"} {:marked false, :value "62"} {:marked true, :value "35"} {:marked false, :value "7"} {:marked false, :value "29"}] [{:marked true, :value "95"} {:marked true, :value "8"} {:marked true, :value "33"} {:marked false, :value "73"} {:marked true, :value "22"}])
+(test/run-tests)

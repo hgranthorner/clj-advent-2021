@@ -1,0 +1,1 @@
+{:indents {clojure.test/deftest [[:inner 0]]}}
