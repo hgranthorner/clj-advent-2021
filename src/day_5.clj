@@ -49,18 +49,23 @@
          (inclusive-range x1 x2)
          (inclusive-range y1 y2))))
 
+(defn inc-nths
+  [nths coll]
+  (loop [c (into [] coll)
+         ns (rest nths)
+         n (first nths)]
+    (if n
+      (recur (update c n inc) (rest ns) (first ns))
+      c)))
 
-(let [xs [1 2 3]
-      ys [0 0 0 0 0 0 0]]
-  (map-indexed #(if ((set xs) %1) (inc %2) %2) ys)
-
-  (defn mark-diagram
-    "Returns a new diagram.
+(defn mark-diagram
+  "Returns a new diagram.
       Marks the diagram with the coordinates, and the space between the coordinates."
-    [diagram width coordinate]
-    (let [cp (coordinate-cross-product coordinate)
-          points (->> cp (map (fn [[x y]] (+ x (* y (inc width))))) set)]
-      (map-indexed #(if (points %1) (inc %2) %2) diagram))))
+  [diagram width coordinate]
+  (let [cp (coordinate-cross-product coordinate)
+        points (map (fn [[x y]] (+ x (* y (inc width)))) cp)]
+    (inc-nths points diagram)
+    #_(map-indexed #(if (points %1) (inc %2) %2) diagram)))
 
 (defn solution-one
   [input]
@@ -77,13 +82,9 @@
                    (update :diagram mark-diagram (:width diagram) coordinate)))
         (count (filter #(< 1 %) (:diagram diagram)))))))
 
-(defn mark-diagram-diagonal
-  "Returns a new diagram.
-   Marks the diagram with the coordinates, and the space between the coordinates."
-  [diagram width coordinate]
-  (let [cp (coordinate-cross-product coordinate)
-        points (->> cp (map (fn [[x y]] (+ x (* y (inc width))))) set)]
-    (map-indexed #(if (points %1) (inc %2) %2) diagram)))
+(comment
+  (update [0 0 0 0 0] 0 inc)
+  (inc-nths [0 2 4] [0 0 0 0 0]))
 
 (defn solution-two
   [input]
@@ -102,8 +103,8 @@
 
 (comment
   (solution-one "inputs/day_5_sample.txt")
-  (future (prn (solution-two "inputs/day_5_input.txt")))
-  (future (prn (solution-one "inputs/day_5_input.txt")))
+  (solution-two "inputs/day_5_input.txt")
+  (solution-one "inputs/day_5_input.txt")
   (def diagram (->> (parse-input "inputs/day_5_sample.txt")
                     (filter #(or (= (:y1 %) (:y2 %))
                                  (= (:x1 %) (:x2 %))))
