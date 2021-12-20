@@ -73,6 +73,33 @@
   [pred coll]
   (= (count (filter pred coll)) (count coll)))
 
+(defn winner?
+  "Checks if a board is a winner."
+  [board]
+  (let [cols (get-cols board)
+        rows (get-rows board)]
+    (or (any? (partial all? :marked?) cols)
+        (any? (partial all? :marked?) rows))))
+
+(defn remove-winners
+  "Returns the new state. Removes all boards that have \"won\"."
+  [state]
+  (update state
+          :boards
+          (fn [boards]
+            (remove winner? boards))))
+
+(comment
+  (declare boards)
+  (count (:boards (remove-winners
+                   {:boards (update boards
+                                    0
+                                    (fn [b]
+                                      (mapv #(assoc % :marked? true) b)))})))
+
+  (count boards)
+  )
+
 (defn solution-one
   "Solves the first puzzle."
   [input]
@@ -94,7 +121,25 @@
           (recur new-state (first (new-state :moves)))))
       (throw (Exception. "Could not find solution!")))))
 
+(defn solution-two
+  [input]
+  (loop [state (parse-input (slurp input))
+         move (first (:moves state))]
+    (if move
+      (let [new-state (play-move (remove-winners state) move)]
+        (if (and (= (count (:boards new-state)) 1)
+                 (winner? (first (:boards new-state))))
+          (->> (first (:boards new-state))
+               (filter (fn [x] (not (:marked? x))))
+               (map :value)
+               (map #(Integer/parseInt %))
+               (reduce +)
+               (* (Integer/parseInt move)))
+          (recur new-state (first (new-state :moves)))))
+      (throw (Exception. "Could not find solution!")))))
+
 (comment
+  
   (trace/untrace-vars all?)
   (trace/trace-vars filter)
 
@@ -105,7 +150,10 @@
                20 21 22 23 24]]
     (get-rows board)))
 
-(test/deftest first-solution
-  (test/is (= (solution-one "inputs/day_4_input.txt") 50008)))
+(test/deftest solutions
+  (test/testing "Solution One"
+    (test/is (= (solution-one "inputs/day_4_input.txt") 50008)))
+  (test/testing "Solution Two"
+    (test/is (= (solution-two "inputs/day_4_input.txt") 17408))))
 
 (test/run-tests)
