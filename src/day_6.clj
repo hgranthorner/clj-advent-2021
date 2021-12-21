@@ -24,4 +24,4 @@
       starting-fish (reduce (fn [acc n] (update acc n inc))
                             no-fish
                             input-nums)]
-  (reduce + (vals (reduce (fn [acc _] (progress-day acc)) starting-fish (range 80)))))
+  (reduce + (vals (reduce (fn [acc _] (progress-day acc)) starting-fish (range 256)))))
