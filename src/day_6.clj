@@ -18,28 +18,10 @@
    no-fish
    fishes))
 
-(defn progress-day-transient
-  [fishes]
-  (-> (reduce
-       (fn [acc [day amt]]
-         (if (= day 0)
-           (-> acc
-               (assoc! 6 (+ amt (get acc 0)))
-               (assoc! 8 (+ amt (get acc 0))))
-           (assoc! acc (dec day) (+ amt (get acc (dec day))))))
-       (transient no-fish)
-       fishes)
-      persistent!))
-
-
-(defn my-test
-  [transient?]
-  (let [input-strs (-> (slurp "inputs/day_6_sample.txt")
-                       (str/split #","))
-        input-nums (map #(Integer/parseInt %) input-strs)
-        starting-fish (reduce (fn [acc n] (update acc n inc))
-                              no-fish
-                              input-nums)]
-    (reduce + (vals (reduce (fn [acc _] ((if transient? progress-day-transient progress-day) acc)) starting-fish (range 80))))))
-
-(criterium/quick-bench (my-test false))
+(let [input-strs (-> (slurp "inputs/day_6_input.txt")
+                     (str/split #","))
+      input-nums (map #(Integer/parseInt %) input-strs)
+      starting-fish (reduce (fn [acc n] (update acc n inc))
+                            no-fish
+                            input-nums)]
+  (reduce + (vals (reduce (fn [acc _] (progress-day acc)) starting-fish (range 80)))))
