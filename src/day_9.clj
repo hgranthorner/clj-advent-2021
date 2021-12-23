@@ -1,11 +1,12 @@
 (ns day-9
   (:require [clojure.string :as str]
             [com.rpl.specter :as s]
-            [clojure.pprint :refer [pprint]]))
+            [clojure.pprint :refer [pprint]]
+            [clojure.test :refer [deftest testing is run-tests]]))
 
 (defn parse-input
-  [file-name]
-  (->> (slurp file-name)
+  [input]
+  (->> input
        str/split-lines
        (mapv #(str/split % #""))
        (s/transform [s/ALL s/ALL] #(Integer/parseInt %))
@@ -49,4 +50,10 @@
      #(+ %1 (inc %2))
      0
      (s/select [(s/filterer not-empty) s/ALL s/ALL (s/filterer map?) s/ALL :height] lowest-points))))
-(def answer-one (solution-one "inputs/day_9_input.txt"))
+(def answer-one (solution-one (slurp "inputs/day_9_input.txt")))
+
+
+
+(deftest day-9
+  (testing "Solution One"
+    (is (= (solution-one (slurp "inputs/day_9_input.txt")) 462))))
