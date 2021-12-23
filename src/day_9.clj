@@ -2,7 +2,20 @@
   (:require [clojure.string :as str]
             [com.rpl.specter :as s]
             [clojure.pprint :refer [pprint]]
-            [clojure.test :refer [deftest testing is run-tests]]))
+            [clojure.test :refer [deftest testing is run-tests]]
+            [portal.api :as p]))
+
+(def p (p/open {:launcher :vs-code}))
+(add-tap #'p/submit)
+(defn tap
+  [x]
+  (tap> x)
+  x)
+
+(defn inspect
+  [x]
+  (pprint x)
+  x)
 
 (defn parse-input
   [input]
