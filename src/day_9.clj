@@ -1,16 +1,17 @@
 (ns day-9
-  (:require [clojure.string :as str]
-            [com.rpl.specter :as s]
+  (:require [clojure.repl :refer [doc]]
             [clojure.pprint :refer [pprint]]
+            [clojure.string :as str]
             [clojure.test :refer [deftest testing is run-tests]]
+            [com.rpl.specter :as s]
             [portal.api :as p]))
 
-(def p (p/open {:launcher :vs-code}))
-(add-tap #'p/submit)
-(defn tap
-  [x]
-  (tap> x)
-  x)
+;(def p (p/open))
+;(add-tap #'p/submit)
+;(defn tap
+;  [x]
+;  (tap> x)
+;  x)
 
 (defn inspect
   [x]
@@ -29,9 +30,10 @@
         (fn [x y]
           [x (s/transform [s/MAP-VALS] #(assoc % :y x) y)]))
        (into (sorted-map))))
-
-(pprint
- (parse-input "inputs/day_9_sample.txt"))
+(comment
+  (tap
+   (parse-input (slurp "inputs/day_9_sample.txt")))
+  )
 
 (defn lower?
   "Checks if the height at (x1, y1) is lower than the height at (x2, y2)"
@@ -63,9 +65,21 @@
      #(+ %1 (inc %2))
      0
      (s/select [(s/filterer not-empty) s/ALL s/ALL (s/filterer map?) s/ALL :height] lowest-points))))
+
 (def answer-one (solution-one (slurp "inputs/day_9_input.txt")))
 
-
+(comment
+  (def height-map (parse-input (slurp "inputs/day_9_sample.txt")))
+  (def cell (get-in height-map [1 1]))
+  (let [f (fn create-group
+            [height-map {:keys [x y] :as cell}]
+            (let [up    (get-in height-map [(dec y) x])
+                  down  (get-in height-map [(inc y) x])
+                  left  (get-in height-map [y (dec x)])
+                  right (get-in height-map [y (inc x)])]
+              (loop [cells (filterv #(not= (:height %) 9) [up down left right])])))]
+    (f height-map cell))
+  )
 
 (deftest day-9
   (testing "Solution One"
