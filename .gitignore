@@ -4,3 +4,5 @@
 .lsp
 .clj-kondo
 .portal
+.idea
+*.iml
