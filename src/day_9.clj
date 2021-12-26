@@ -136,11 +136,9 @@
                                             [:height-map HeightMap]
                                             [:group [:set Cell]]]])
 
-
-(comment
-  (mi/instrument!)
-  (mi/unstrument!)
-  (let [height-map  (parse-input (slurp "inputs/day_9_input.txt"))
+(defn solution-two
+  [input]
+  (let [height-map  (parse-input (slurp input))
         valid-cells (map (partial into {})
                       (sp/select [sp/MAP-VALS (sp/filterer #(not-boundary? (second %))) sp/ALL sp/ALL map?]
                         height-map))
@@ -149,7 +147,15 @@
                                 {:height-map new-map :groups (conj groups new-group)}))
                       {:height-map height-map, :groups []}
                       valid-cells)]
-    (apply * (take 3 (reverse (sort (map count (:groups groups)))))))
+    (apply * (take 3 (reverse (sort (map count (:groups groups))))))))
+(def answer-two (solution-two (slurp "inputs/day_9_input.txt")))
+
+
+
+(comment
+  (mi/instrument!)
+  (mi/unstrument!)
+
   (def height-map (parse-input (slurp "inputs/day_9_sample.txt")))
   (def cell (get-in height-map [0 0]))
   (get-group height-map cell)
@@ -182,6 +188,8 @@
 
 (deftest day-9
   (testing "Solution One"
-    (is (= (solution-one (slurp "inputs/day_9_input.txt")) 462))))
+    (is (= (solution-one (slurp "inputs/day_9_input.txt")) 462)))
+  (testing "Solution Two"
+    (is (= (solution-two (slurp "inputs/day_9_input.txt")) 1397760))))
 
 (run-tests)
