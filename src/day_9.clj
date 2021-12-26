@@ -10,11 +10,6 @@
             [malli.instrument :as mi]
             [com.rpl.specter :as sp]))
 
-(defn inspect
-  [x]
-  (pprint x)
-  x)
-
 (mr/set-default-registry!
   (merge
     (m/default-schemas)
