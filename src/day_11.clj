@@ -3,107 +3,210 @@
             [clojure.pprint :refer [pprint]]
             [clojure.string :as str]
             [clojure.test :refer [deftest testing is run-tests]]
-            [malli.core :as m]
-            [malli.registry :as mr]
-            [malli.util :as mu]
-            [malli.instrument :as mi]
             [com.rpl.specter :as sp]))
 
-(str/split-lines (slurp "inputs/day_11_sample.txt"))
+(def flashes (atom 0))
 
-(defn parse-input
-  "Parses input into a height map."
-  [input]
-  (->> input
-       str/split-lines
-       (mapv #(str/split % #""))
-       (sp/transform [sp/ALL sp/ALL] #(Integer/parseInt %))
-       (sp/transform [sp/ALL]
-                     #(map-indexed
-                        (fn [x y] (sorted-map x {::brightness y ::x x ::flashed? false})) %))
-       (map #(into (sorted-map) %))
-       (map-indexed
-         (fn [x y]
-           [x (sp/transform [sp/MAP-VALS] #(assoc % ::y x) y)]))
-       (into (sorted-map))))
+(def starting "11111
+19991
+19191
+19991
+11111")
 
-(defn inc-round
-  "`inc` input - if the number is gt 9 then round down to 10."
-  [x]
-  (let [x (inc x)]
-    (if (< 9 x) 0 x)))
+(def after-step-1 "34543
+40004
+50005
+40004
+34543")
+
+(def after-step-2 "45654
+51115
+61116
+51115
+45654")
+
+(defn parse-octopi
+  "Returns a map of x/y tuples to octopi."
+  [octopi-string]
+  (let [len (-> octopi-string str/split-lines first count)]
+  (into {}
+   (comp
+    (remove (partial = \newline))
+    (map-indexed
+     (fn [i n]
+       [[(mod i len) (quot i len)]
+        {:value (Integer/parseInt (str n))
+         :flashed? false
+         :already-flashed? false}])))
+   octopi-string)))
+
+
+(defn encode-octopi
+  [octopi]
+  (let [all-pos (keys octopi)
+        max-x (first (apply (partial max-key first) all-pos))]
+    (->> octopi
+         (into (sorted-map-by (fn [pos1 pos2]
+                                (compare (vec (reverse pos1)) (vec (reverse pos2))))))
+         (map (fn [[_ {:keys [value]}]]
+                (str value)))
+         (partition (inc max-x))
+         (map str/join)
+         (str/join \newline))))
+
+(defn increment-octopus-value
+  [{:keys [value] :as m}]
+  (let [new-val (inc value)]
+    (assoc m
+           :value new-val
+           :flashed? (< 9 new-val))))
+
+(defn increment-octopus
+  [[pos m]]
+  [pos (increment-octopus-value m)])
+
+(defn increment-octopi
+  "Increments the value for each octopi. Sets :flashed? to '(< 9 new-value)."
+  [octopi]
+  (into {}
+        (map increment-octopus)
+        octopi))
+
+(defn surrounding-positions
+  [octopi x y]
+  (let [all-pos (keys octopi)
+        max-x (first (apply (partial max-key first) all-pos))
+        min-x (first (apply (partial min-key first) all-pos))
+        max-y (second (apply (partial max-key second) all-pos))
+        min-y (second (apply (partial min-key second) all-pos))
+        xs (filter #(<= min-x % max-x) (range (dec x) (inc (inc x))))
+        ys (filter #(<= min-y % max-y) (range (dec y) (inc (inc y))))]
+    (for [x' xs
+          y' ys]
+      [x' y'])))
+
+(defn update-surrounding
+  "Updates the surrounding octopi after a flash."
+  [octopi]
+  (let [flashed-octopi (filter (fn [[_ {:keys [flashed? already-flashed?]}]]
+                                 (and flashed? (not already-flashed?)))
+                               octopi)
+        _ (swap! flashes (partial + (count flashed-octopi)))]
+    (loop [[[x y :as pos] m] (first flashed-octopi)
+           os (rest flashed-octopi)
+           octopi octopi]
+      (if m
+        (recur (first os)
+               (rest os)
+               (-> (reduce (fn [acc pos]
+                             (update acc pos increment-octopus-value))
+                           octopi
+                           (surrounding-positions octopi x y))
+                   (update [x y] #(assoc % :already-flashed? true))))
+        octopi))))
 
 (comment
-  (inc-round 2)
-  (inc-round 9)
+  (let [octopi (parse-octopi starting)
+        grid1 (increment-octopi octopi)
+        grid2 (update-surrounding grid1)]
+    (filter
+     #(and (:flashed? %) (not (:already-flashed? %)))
+     (vals grid2)))
   )
 
-(def adjacent-coordinates
-  (remove #(= (first %) (second %) 0)
-          (for [x (range -1 2)
-                y (range -1 2)]
-            [x y])))
+(defn reset-flashed-octopi
+  [octopi]
+  (into {}
+        (map (fn [[pos {:keys [flashed?] :as m}]]
+               [pos (if flashed?
+                      (assoc m
+                             :value 0
+                             :flashed? false
+                             :already-flashed? false)
+                      m)]))
+        octopi))
 
-(defn adjacent-octopi
-  [grid {::keys [x y]}]
-  (remove nil?
-          (for [[xd yd] adjacent-coordinates]
-            (get-in grid [(+ yd y) (+ xd x)]))))
+(defn update-octopi
+  "Returns a grid of octopi after 1 step."
+  [octopi]
+  (loop [octopi (-> octopi increment-octopi update-surrounding)]
+    (if (not-empty (filter
+                    #(and (:flashed? %) (not (:already-flashed? %)))
+                    (vals octopi)))
+      (recur (update-surrounding octopi))
+      (reset-flashed-octopi octopi))))
 
-(defn mark-flashed
-  "Marks an octopus as 'flashed' if its brightness is 0."
-  [{::keys [brightness] :as o}]
-  (if (zero? brightness)
-    (assoc o ::flashed? true
-             ::just-flashed? true)
-    o))
+(defn verify
+  [octopi example]
+  (let [next (update-octopi octopi)]
+    (assert (= example (encode-octopi next))
+            (format "Octopis do not match. Example: \n%s\nSupplied:\n%s\n"
+                    example
+                    (encode-octopi next)))
+    next))
 
-(defn grow-older
-  [o]
-  (-> o
-      (update ::brightness inc-round)
-      mark-flashed))
+(comment
+  (def input (slurp "inputs/day_11_input.txt"))
+  @flashes
 
-(defn pass-time
-  "Increase all octopi's brightness and have them flash."
-  [grid]
-  (sp/transform [sp/MAP-VALS sp/MAP-VALS] grow-older grid))
+  (loop [octopi (parse-octopi input)
+         steps 0]
+    (if (= 100 steps)
+      @flashes
+      (recur (update-octopi octopi) (inc steps))))
 
-(defn determine-octopi-to-increase
-  [grid flashed-octopi]
-  (into #{}
-        (comp
-          (mapcat (partial adjacent-octopi grid))
-          (filter #(not (::flashed? %)))
-          (map #(select-keys % [::x ::y])))
-        flashed-octopi))
+  (-> (parse-octopi starting)
+      (verify after-step-1)
+      (verify after-step-2))
 
-(defn increase-surrounding-energy
-  "Find the flashed octopi and increase the surrounding octopi's brightness."
-  [grid]
-  (let [grid grid
-        just-flashed (sp/select [sp/MAP-VALS sp/MAP-VALS #(::just-flashed? %)] grid)
-        ; Only age the octopi that haven't flashed yet
-        to-increase (determine-octopi-to-increase grid just-flashed)]
-    (sp/transform
-      [sp/MAP-VALS sp/MAP-VALS #(to-increase (select-keys % [::x ::y]))]
-      grow-older
-      grid)))
+  (= (encode-octopi (parse-octopi ex-starting)) ex-starting)
+  (-> (parse-octopi ex-starting)
+      (verify ex-step-1)
+      (verify ex-step-2)
+      (verify ex-step-3))
+  )
 
-(def grid (parse-input (slurp "inputs/day_11_sample.txt")))
-(def mini-grid (parse-input "11111\n19991\n19191\n19991\n11111"))
-(increase-surrounding-energy
-  (-> grid pass-time pass-time))
 
-(-> mini-grid
-    pass-time
-    increase-surrounding-energy)
+(def ex-starting "5483143223
+2745854711
+5264556173
+6141336146
+6357385478
+4167524645
+2176841721
+6882881134
+4846848554
+5283751526")
 
-(adjacent-octopi grid {::x 1 ::y 1})
+(def ex-step-1 "6594254334
+3856965822
+6375667284
+7252447257
+7468496589
+5278635756
+3287952832
+7993992245
+5957959665
+6394862637")
 
-; Two phases
-; 1 - time passes. octopi brightness all goes up. If anyone rolls over they're marked as "flashed" to prevent from flashing again,
-;     and "just-flashed" to indicate that the surrounding octopi need to grow-older.
-; 2 - find every octopus that just-flashed and increase the adjacent octopus's brightness. Remove their just-flashed flag.
-;   - This may cause other octopi to flash - continue to find the "just-flashed" octopi until there are none left
-; 3 - Set all "flashed" octopi to 0 brightness and remove their flashed and just-flashed statuses.
+(def ex-step-2 "8807476555
+5089087054
+8597889608
+8485769600
+8700908800
+6600088989
+6800005943
+0000007456
+9000000876
+8700006848")
+
+(def ex-step-3 "0050900866
+8500800575
+9900000039
+9700000041
+9935080063
+7712300000
+7911250009
+2211130000
+0421125000
+0021119000")
