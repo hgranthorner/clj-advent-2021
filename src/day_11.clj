@@ -6,6 +6,7 @@
             [com.rpl.specter :as sp]))
 
 (def flashes (atom 0))
+(def all-flashed? (atom false))
 
 (def starting "11111
 19991
@@ -151,8 +152,8 @@
 
   (loop [octopi (parse-octopi input)
          steps 0]
-    (if (= 100 steps)
-      @flashes
+    (if (every? zero? (map :value (vals octopi)))
+      steps
       (recur (update-octopi octopi) (inc steps))))
 
   (-> (parse-octopi starting)
